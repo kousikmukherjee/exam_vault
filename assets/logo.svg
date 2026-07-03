@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+
+  <!-- Background circle -->
+  <circle cx="512" cy="512" r="512" fill="#0D47A1"/>
+
+  <!-- Shield shadow -->
+  <path d="M512 140 L780 240 L780 560 Q780 760 512 880 Q244 760 244 560 L244 240 Z"
+        fill="#001E5A" opacity="0.3" transform="translate(8,8)"/>
+
+  <!-- Main shield -->
+  <path d="M512 140 L780 240 L780 560 Q780 760 512 880 Q244 760 244 560 L244 240 Z"
+        fill="#1565C0"/>
+
+  <!-- Shield inner panel -->
+  <path d="M512 180 L748 272 L748 558 Q748 740 512 848 Q276 740 276 558 L276 272 Z"
+        fill="#002171"/>
+
+  <!-- Vault door gold outer ring -->
+  <circle cx="512" cy="530" r="210" fill="#FF8F00"/>
+
+  <!-- Vault door blue middle -->
+  <circle cx="512" cy="530" r="192" fill="#0D47A1"/>
+
+  <!-- Vault door inner ring -->
+  <circle cx="512" cy="530" r="176" fill="none" stroke="#FF8F00" stroke-width="6"/>
+
+  <!-- Vault door inner fill -->
+  <circle cx="512" cy="530" r="166" fill="#002171"/>
+
+  <!-- Vault spokes -->
+  <line x1="512" y1="364" x2="512" y2="696" stroke="#FF8F00" stroke-width="12" stroke-linecap="round"/>
+  <line x1="346" y1="530" x2="678" y2="530" stroke="#FF8F00" stroke-width="12" stroke-linecap="round"/>
+  <line x1="395" y1="413" x2="629" y2="647" stroke="#FF8F00" stroke-width="8" stroke-linecap="round"/>
+  <line x1="629" y1="413" x2="395" y2="647" stroke="#FF8F00" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Vault handle -->
+  <rect x="390" y="518" width="244" height="24" rx="12" fill="#FF8F00"/>
+
+  <!-- Center bolt -->
+  <circle cx="512" cy="530" r="38" fill="#FF8F00"/>
+  <circle cx="512" cy="530" r="24" fill="#002171"/>
+  <circle cx="512" cy="530" r="12" fill="#FF8F00"/>
+
+  <!-- Rivets -->
+  <circle cx="512" cy="322" r="14" fill="#002171"/>
+  <circle cx="512" cy="738" r="14" fill="#002171"/>
+  <circle cx="304" cy="530" r="14" fill="#002171"/>
+  <circle cx="720" cy="530" r="14" fill="#002171"/>
+
+  <!-- EV text top of shield -->
+  <text x="512" y="296" text-anchor="middle"
+        font-family="Arial, sans-serif" font-weight="900"
+        font-size="80" fill="#FFD54F" letter-spacing="8">EV</text>
+
+  <!-- Gold line under EV -->
+  <rect x="422" y="308" width="180" height="5" rx="2.5" fill="#FF8F00"/>
+
+  <!-- Shield top highlight -->
+  <path d="M512 140 L780 240 L780 310 Q646 278 512 274 Q378 278 244 310 L244 240 Z"
+        fill="#1565C0" opacity="0.5"/>
+
+</svg>
