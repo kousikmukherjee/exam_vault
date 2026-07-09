@@ -2,6 +2,10 @@
 
 part of 'question_set.dart';
 
+// **************************************************************************
+// TypeAdapterGenerator
+// **************************************************************************
+
 class QuestionSetAdapter extends TypeAdapter<QuestionSet> {
   @override
   final int typeId = 1;
