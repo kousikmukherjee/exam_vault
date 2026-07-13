@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:hive/hive.dart';
 import 'package:uuid/uuid.dart';
 import '../../models/note_model.dart';
-import 'package:hive/hive.dart';
-import '../../theme.dart';
 
 class NoteEditorScreen extends StatefulWidget {
   final NoteModel? note;
@@ -16,18 +14,18 @@ class NoteEditorScreen extends StatefulWidget {
 class _NoteEditorScreenState extends State<NoteEditorScreen> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
-  Color _selectedColor = Colors.blueAccent;
-  bool _isEdited = false;
+  Color _noteColor = const Color(0xFF1E3A5F); // dark blue default
 
-  final List<Color> _quickColors = [
-    Colors.blueAccent,
-    Colors.greenAccent,
-    Colors.orangeAccent,
-    Colors.purpleAccent,
-    Colors.redAccent,
-    Colors.tealAccent,
-    Colors.pinkAccent,
-    Colors.yellowAccent,
+  // Note background colors
+  final List<Map<String, dynamic>> _colorOptions = [
+    {'color': const Color(0xFF1E3A5F), 'name': 'Blue'},
+    {'color': const Color(0xFF1B4332), 'name': 'Green'},
+    {'color': const Color(0xFF3D1A24), 'name': 'Red'},
+    {'color': const Color(0xFF2D1B69), 'name': 'Purple'},
+    {'color': const Color(0xFF3D2B00), 'name': 'Brown'},
+    {'color': const Color(0xFF0D3D3D), 'name': 'Teal'},
+    {'color': const Color(0xFF2C2C2C), 'name': 'Dark'},
+    {'color': const Color(0xFF1A1A2E), 'name': 'Navy'},
   ];
 
   @override
@@ -38,7 +36,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
       text: widget.note?.content ?? '',
     );
     if (widget.note != null) {
-      _selectedColor = Color(widget.note!.colorValue);
+      _noteColor = Color(widget.note!.colorValue);
     }
   }
 
@@ -47,21 +45,19 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     final now = DateTime.now();
 
     if (widget.note == null) {
-      // নতুন নোট
       final newNote = NoteModel(
         id: const Uuid().v4(),
         title: _titleController.text.trim(),
         content: _contentController.text.trim(),
-        colorValue: _selectedColor.value,
+        colorValue: _noteColor.value,
         createdAt: now,
         updatedAt: now,
       );
       box.put(newNote.id, newNote);
     } else {
-      // Update existing
       widget.note!.title = _titleController.text.trim();
       widget.note!.content = _contentController.text.trim();
-      widget.note!.colorValue = _selectedColor.value;
+      widget.note!.colorValue = _noteColor.value;
       widget.note!.updatedAt = now;
       widget.note!.save();
     }
@@ -69,166 +65,120 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     Navigator.pop(context);
   }
 
-  void _showColorPicker() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF16213E),
-        title: const Text('রং বেছে নিন', style: TextStyle(color: Colors.white)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Quick colors
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: _quickColors.map((color) {
-                return GestureDetector(
-                  onTap: () {
-                    setState(() => _selectedColor = color);
-                    Navigator.pop(ctx);
-                  },
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      border: _selectedColor == color
-                          ? Border.all(color: Colors.white, width: 3)
-                          : null,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 16),
-            // Full color picker
-            ColorPicker(
-              pickerColor: _selectedColor,
-              onColorChanged: (color) {
-                setState(() => _selectedColor = color);
-              },
-              pickerAreaHeightPercent: 0.5,
-              enableAlpha: false,
-              displayThumbColor: true,
-              labelTypes: const [],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('ঠিক আছে'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.surface,
+      backgroundColor: _noteColor,
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryDark,
-        title: Text(
-          widget.note == null ? 'New Note' : 'Edit Note',
-          style: const TextStyle(color: Colors.white),
-        ),
+        backgroundColor: Colors.black26,
+        elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Note', style: TextStyle(color: Colors.white)),
         actions: [
-          // Color picker button
-          GestureDetector(
-            onTap: _showColorPicker,
-            child: Container(
-              margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: _selectedColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-            ),
-          ),
-          // Save button
           TextButton.icon(
             onPressed: _saveNote,
-            icon: const Icon(Icons.save_rounded, color: Colors.white),
+            icon: const Icon(Icons.check, color: Colors.white),
             label: const Text(
               'Save',
               style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
+                fontSize: 16,
               ),
             ),
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Color indicator bar
-            Container(
-              height: 4,
-              decoration: BoxDecoration(
-                color: _selectedColor,
-                borderRadius: BorderRadius.circular(2),
-              ),
+      body: Column(
+        children: [
+          // ── Color selector ───────────────────────────
+          Container(
+            height: 56,
+            color: Colors.black26,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: _colorOptions.map((item) {
+                final color = item['color'] as Color;
+                final isSelected = _noteColor == color;
+                return GestureDetector(
+                  onTap: () => setState(() => _noteColor = color),
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? Colors.white : Colors.white38,
+                        width: isSelected ? 3 : 1,
+                      ),
+                    ),
+                    child: isSelected
+                        ? const Icon(Icons.check, color: Colors.white, size: 18)
+                        : null,
+                  ),
+                );
+              }).toList(),
             ),
-            const SizedBox(height: 16),
+          ),
 
-            // Title field
-            TextField(
+          // ── Title field ──────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: TextField(
               controller: _titleController,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 22,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
               ),
-              decoration: InputDecoration(
-                hintText: 'Title...',
+              cursorColor: Colors.white,
+              decoration: const InputDecoration(
+                hintText: 'Title',
                 hintStyle: TextStyle(
-                  color: Colors.white.withOpacity(0.3),
-                  fontSize: 22,
+                  color: Colors.white38,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
                 border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
               ),
-              onChanged: (_) => setState(() => _isEdited = true),
             ),
+          ),
 
-            Divider(color: Colors.white.withOpacity(0.1)),
-            const SizedBox(height: 8),
+          // Divider
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            child: Divider(color: Colors.white.withOpacity(0.2), height: 1),
+          ),
 
-            // Content field
-            Expanded(
+          // ── Content field ────────────────────────────
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
               child: TextField(
                 controller: _contentController,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
-                  height: 1.6,
+                  height: 1.7,
                 ),
-                decoration: InputDecoration(
+                cursorColor: Colors.white,
+                decoration: const InputDecoration(
                   hintText: 'এখানে লিখুন...',
-                  hintStyle: TextStyle(
-                    color: Colors.white.withOpacity(0.25),
-                    fontSize: 16,
-                  ),
+                  hintStyle: TextStyle(color: Colors.white38, fontSize: 16),
                   border: InputBorder.none,
-                  alignLabelWithHint: true,
+                  contentPadding: EdgeInsets.zero,
                 ),
                 maxLines: null,
                 expands: true,
                 textAlignVertical: TextAlignVertical.top,
-                onChanged: (_) => setState(() => _isEdited = true),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
