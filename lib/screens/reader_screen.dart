@@ -28,6 +28,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   int _correctCount = 0;
   int _wrongCount = 0;
 
+  // Read Mode toggle
+  bool _isReadMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -71,7 +74,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   void _onOptionTapped(String optionKey, String correctOption) {
-    if (_isAnswered) return;
+    if (_isAnswered || _isReadMode) return;
     setState(() {
       _selectedOption = optionKey;
       _isAnswered = true;
@@ -108,6 +111,39 @@ class _ReaderScreenState extends State<ReaderScreen> {
     _pageController.previousPage(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
+    );
+  }
+
+  void _toggleReadMode() {
+    setState(() {
+      _isReadMode = !_isReadMode;
+      // Reset answer state when switching modes
+      _selectedOption = null;
+      _isAnswered = false;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              _isReadMode ? Icons.menu_book_rounded : Icons.quiz_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _isReadMode
+                  ? 'Read Mode ON — সব উত্তর ও ব্যাখ্যা দেখা যাচ্ছে'
+                  : 'Test Mode ON — নিজে উত্তর দিন',
+            ),
+          ],
+        ),
+        backgroundColor: _isReadMode ? Colors.amber.shade700 : AppTheme.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
     );
   }
 
@@ -264,38 +300,48 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
               Text(
-                'Q.${_currentIndex + 1} of ${_questions.length}   -   ${(progress * 100).toStringAsFixed(0)}% done',
+                'Q.${_currentIndex + 1} of ${_questions.length}   •   ${(progress * 100).toStringAsFixed(0)}% done',
                 style: const TextStyle(fontSize: 11, color: Colors.white60),
               ),
             ],
           ),
           actions: [
+            // ── Read Mode Toggle ──────────────────────
             GestureDetector(
-              onTap: _showScoreDialog,
-              child: Container(
-                margin: const EdgeInsets.only(right: 4),
+              onTap: _toggleReadMode,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 250),
+                margin: const EdgeInsets.symmetric(vertical: 10),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
-                  vertical: 6,
+                  vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: _isReadMode
+                      ? Colors.amber.shade600
+                      : Colors.white.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _isReadMode ? Colors.amber.shade300 : Colors.white30,
+                    width: 1,
+                  ),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.emoji_events_rounded,
-                      color: AppTheme.accentLight,
-                      size: 16,
+                    Icon(
+                      _isReadMode
+                          ? Icons.menu_book_rounded
+                          : Icons.quiz_rounded,
+                      color: _isReadMode ? Colors.black : Colors.white,
+                      size: 14,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      '$_correctCount/${_correctCount + _wrongCount}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
+                      _isReadMode ? 'Read' : 'Test',
+                      style: TextStyle(
+                        color: _isReadMode ? Colors.black : Colors.white,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -303,6 +349,45 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
             ),
+            const SizedBox(width: 4),
+
+            // ── Score chip ────────────────────────────
+            if (!_isReadMode)
+              GestureDetector(
+                onTap: _showScoreDialog,
+                child: Container(
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.emoji_events_rounded,
+                        color: AppTheme.accentLight,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$_correctCount/${_correctCount + _wrongCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // ── Jump to question ──────────────────────
             IconButton(
               onPressed: _jumpToQuestion,
               icon: const Icon(Icons.search_rounded, color: Colors.white),
@@ -314,8 +399,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
             child: LinearProgressIndicator(
               value: progress,
               backgroundColor: Colors.white24,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                AppTheme.accentLight,
+              valueColor: AlwaysStoppedAnimation<Color>(
+                _isReadMode ? Colors.amber : AppTheme.accentLight,
               ),
               minHeight: 3,
             ),
@@ -324,8 +409,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              Container(
-                color: color.withOpacity(0.06),
+              // ── Mode hint bar ─────────────────────────
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                color: _isReadMode
+                    ? Colors.amber.withOpacity(0.12)
+                    : color.withOpacity(0.06),
                 padding: const EdgeInsets.symmetric(
                   vertical: 7,
                   horizontal: 16,
@@ -333,15 +422,31 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.touch_app_rounded, size: 14, color: color),
+                    Icon(
+                      _isReadMode
+                          ? Icons.menu_book_rounded
+                          : Icons.touch_app_rounded,
+                      size: 14,
+                      color: _isReadMode ? Colors.amber.shade700 : color,
+                    ),
                     const SizedBox(width: 6),
                     Text(
-                      'Tap an option to answer  -  Swipe to navigate',
-                      style: TextStyle(fontSize: 12, color: color),
+                      _isReadMode
+                          ? 'Read Mode — সব উত্তর ও ব্যাখ্যা দেখা যাচ্ছে'
+                          : 'Tap an option to answer  •  Swipe to navigate',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _isReadMode ? Colors.amber.shade700 : color,
+                        fontWeight: _isReadMode
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),
               ),
+
+              // ── Question PageView ─────────────────────
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -360,6 +465,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                       questionNumber: index + 1,
                       selectedOption: selected,
                       isAnswered: answered,
+                      isReadMode: _isReadMode,
                       onOptionTapped: (key) =>
                           _onOptionTapped(key, q.correctOption),
                       subjectColor: AppTheme.subjectColor(q.subject),
@@ -367,6 +473,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   },
                 ),
               ),
+
+              // ── Bottom navigation ─────────────────────
               _buildBottomNav(color),
             ],
           ),
@@ -376,6 +484,8 @@ class _ReaderScreenState extends State<ReaderScreen> {
   }
 
   Widget _buildBottomNav(Color color) {
+    final bool canGoNext = _isReadMode || _isAnswered;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
@@ -390,30 +500,20 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
       child: Row(
         children: [
+          // Prev button
           _navBtn(
             icon: Icons.arrow_back_rounded,
             enabled: _currentIndex > 0,
-            color: color,
+            color: _isReadMode ? Colors.amber.shade700 : color,
             onTap: _goPrev,
           ),
           const SizedBox(width: 8),
+
+          // Center button
           Expanded(
             flex: 2,
-            child: !_isAnswered
+            child: canGoNext
                 ? ElevatedButton.icon(
-                    onPressed: null,
-                    icon: const Icon(Icons.touch_app_rounded, size: 18),
-                    label: const Text('Tap an Option Above'),
-                    style: ElevatedButton.styleFrom(
-                      disabledBackgroundColor: Colors.grey.shade200,
-                      disabledForegroundColor: Colors.grey,
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  )
-                : ElevatedButton.icon(
                     onPressed: _goNext,
                     icon: Icon(
                       _currentIndex < _questions.length - 1
@@ -427,8 +527,25 @@ class _ReaderScreenState extends State<ReaderScreen> {
                           : 'Complete!',
                     ),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: color,
-                      foregroundColor: Colors.white,
+                      backgroundColor: _isReadMode
+                          ? Colors.amber.shade600
+                          : color,
+                      foregroundColor: _isReadMode
+                          ? Colors.black
+                          : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  )
+                : ElevatedButton.icon(
+                    onPressed: null,
+                    icon: const Icon(Icons.touch_app_rounded, size: 18),
+                    label: const Text('Tap an Option Above'),
+                    style: ElevatedButton.styleFrom(
+                      disabledBackgroundColor: Colors.grey.shade200,
+                      disabledForegroundColor: Colors.grey,
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -437,10 +554,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
           ),
           const SizedBox(width: 8),
+
+          // Next button
           _navBtn(
             icon: Icons.arrow_forward_rounded,
             enabled: _currentIndex < _questions.length - 1,
-            color: color,
+            color: _isReadMode ? Colors.amber.shade700 : color,
             onTap: _goNext,
           ),
         ],
@@ -543,6 +662,7 @@ class _QuestionCard extends StatelessWidget {
   final int questionNumber;
   final String? selectedOption;
   final bool isAnswered;
+  final bool isReadMode;
   final void Function(String) onOptionTapped;
   final Color subjectColor;
 
@@ -551,12 +671,15 @@ class _QuestionCard extends StatelessWidget {
     required this.questionNumber,
     required this.selectedOption,
     required this.isAnswered,
+    required this.isReadMode,
     required this.onOptionTapped,
     required this.subjectColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Read mode-এ সব দেখাবে, Test mode-এ answer দিলে দেখাবে
+    final bool showAnswer = isAnswered || isReadMode;
     final bool isCorrectAnswer =
         isAnswered && selectedOption == question.correctOption;
     final bool isWrongAnswer =
@@ -567,7 +690,7 @@ class _QuestionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Question card
+          // ── Question card ───────────────────────────
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -583,10 +706,32 @@ class _QuestionCard extends StatelessWidget {
                         subjectColor,
                       ),
                       const Spacer(),
-                      Text(
-                        AppTheme.difficultyLabel(question.difficulty),
-                        style: const TextStyle(fontSize: 12),
-                      ),
+                      // Read mode badge
+                      if (isReadMode)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade100,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.amber.shade300),
+                          ),
+                          child: Text(
+                            '📖 Read',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.amber.shade800,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        )
+                      else
+                        Text(
+                          AppTheme.difficultyLabel(question.difficulty),
+                          style: const TextStyle(fontSize: 12),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -605,12 +750,13 @@ class _QuestionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // Options
+          // ── Options ─────────────────────────────────
           ...question.options.entries.map(
             (e) => _OptionTile(
               optionKey: e.key,
               optionText: e.value,
               isAnswered: isAnswered,
+              isReadMode: isReadMode,
               isCorrect: e.key == question.correctOption,
               isSelected: selectedOption == e.key,
               onTap: () => onOptionTapped(e.key),
@@ -619,19 +765,24 @@ class _QuestionCard extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // Result + Explanation
-          if (isAnswered) ...[
+          // ── Result + Explanation ─────────────────────
+          if (showAnswer) ...[
+            // Result banner
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: isCorrectAnswer
+                color: isReadMode
+                    ? Colors.green.withOpacity(0.08)
+                    : isCorrectAnswer
                     ? AppTheme.successLight.withOpacity(0.1)
                     : AppTheme.error.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: isCorrectAnswer
+                  color: isReadMode
+                      ? Colors.green.withOpacity(0.4)
+                      : isCorrectAnswer
                       ? AppTheme.successLight.withOpacity(0.5)
                       : AppTheme.error.withOpacity(0.4),
                 ),
@@ -642,13 +793,17 @@ class _QuestionCard extends StatelessWidget {
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: isCorrectAnswer
+                      color: isReadMode
+                          ? AppTheme.successLight
+                          : isCorrectAnswer
                           ? AppTheme.successLight
                           : AppTheme.error,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      isCorrectAnswer
+                      isReadMode
+                          ? Icons.check_rounded
+                          : isCorrectAnswer
                           ? Icons.check_rounded
                           : Icons.close_rounded,
                       color: Colors.white,
@@ -661,18 +816,24 @@ class _QuestionCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isCorrectAnswer ? 'CORRECT! 🎉' : 'WRONG ❌',
+                          isReadMode
+                              ? 'সঠিক উত্তর 📖'
+                              : isCorrectAnswer
+                              ? 'CORRECT! 🎉'
+                              : 'WRONG ❌',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.5,
-                            color: isCorrectAnswer
+                            color: isReadMode
+                                ? AppTheme.successLight
+                                : isCorrectAnswer
                                 ? AppTheme.successLight
                                 : AppTheme.error,
                           ),
                         ),
                         const SizedBox(height: 3),
-                        if (isWrongAnswer)
+                        if (!isReadMode && isWrongAnswer)
                           Text(
                             'Correct: (${question.correctOption}) ${question.answer}',
                             style: const TextStyle(
@@ -698,22 +859,22 @@ class _QuestionCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // Explanation
+            // Explanation card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Row(
+                    Row(
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.lightbulb_rounded,
                           color: AppTheme.accent,
                           size: 18,
                         ),
-                        SizedBox(width: 8),
-                        Text(
+                        const SizedBox(width: 8),
+                        const Text(
                           'EXPLANATION',
                           style: TextStyle(
                             fontSize: 11,
@@ -722,6 +883,26 @@ class _QuestionCard extends StatelessWidget {
                             color: Color(0xFF37474F),
                           ),
                         ),
+                        if (isReadMode) ...[
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade100,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '📖 Read Mode',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.amber.shade800,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -788,6 +969,7 @@ class _OptionTile extends StatelessWidget {
   final String optionKey;
   final String optionText;
   final bool isAnswered;
+  final bool isReadMode;
   final bool isCorrect;
   final bool isSelected;
   final VoidCallback onTap;
@@ -796,6 +978,7 @@ class _OptionTile extends StatelessWidget {
     required this.optionKey,
     required this.optionText,
     required this.isAnswered,
+    required this.isReadMode,
     required this.isCorrect,
     required this.isSelected,
     required this.onTap,
@@ -803,6 +986,10 @@ class _OptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Read mode-এ correct answer সবুজ, বাকি normal
+    // Test mode-এ answer দিলে correct সবুজ, wrong লাল
+    final bool showResult = isAnswered || isReadMode;
+
     Color bgColor = Colors.white;
     Color borderColor = const Color(0xFFE0E0E0);
     Color textColor = const Color(0xFF333333);
@@ -810,8 +997,9 @@ class _OptionTile extends StatelessWidget {
     Color keyTextColor = Colors.grey.shade700;
     Widget? trailingIcon;
 
-    if (isAnswered) {
+    if (showResult) {
       if (isCorrect) {
+        // Correct answer — সবুজ
         bgColor = AppTheme.successLight.withOpacity(0.08);
         borderColor = AppTheme.successLight.withOpacity(0.5);
         textColor = AppTheme.success;
@@ -822,7 +1010,8 @@ class _OptionTile extends StatelessWidget {
           color: AppTheme.successLight,
           size: 22,
         );
-      } else if (isSelected) {
+      } else if (!isReadMode && isSelected) {
+        // Test mode-এ ভুল উত্তর — লাল
         bgColor = AppTheme.error.withOpacity(0.07);
         borderColor = AppTheme.error.withOpacity(0.4);
         textColor = AppTheme.error;
@@ -834,6 +1023,7 @@ class _OptionTile extends StatelessWidget {
           size: 22,
         );
       } else {
+        // Read mode-এ ভুল option — dim
         bgColor = Colors.grey.shade50;
         borderColor = Colors.grey.shade200;
         textColor = Colors.grey.shade400;
@@ -851,9 +1041,9 @@ class _OptionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: borderColor,
-          width: (isAnswered && (isCorrect || isSelected)) ? 1.5 : 1,
+          width: (showResult && (isCorrect || isSelected)) ? 1.5 : 1,
         ),
-        boxShadow: !isAnswered
+        boxShadow: !showResult
             ? [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.04),
@@ -866,7 +1056,8 @@ class _OptionTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: isAnswered ? null : onTap,
+          // Read mode বা answered হলে tap disable
+          onTap: showResult ? null : onTap,
           borderRadius: BorderRadius.circular(14),
           splashColor: AppTheme.primary.withOpacity(0.08),
           child: Padding(
@@ -899,7 +1090,7 @@ class _OptionTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 14,
                       color: textColor,
-                      fontWeight: (isAnswered && (isCorrect || isSelected))
+                      fontWeight: (showResult && (isCorrect || isSelected))
                           ? FontWeight.w600
                           : FontWeight.normal,
                     ),
