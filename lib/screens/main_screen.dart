@@ -1,10 +1,12 @@
+// lib/screens/main_screen.dart
+
 import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'home_screen.dart';
 import 'pdf/pdf_library_screen.dart';
-// ↓ নতুন imports
 import 'notes/notes_screen.dart';
 import 'drawing/drawing_screen.dart';
+import 'study_notes/study_notes_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -19,8 +21,9 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _screens = const [
     HomeScreen(),
     PdfLibraryScreen(),
-    NotesScreen(), // নতুন
-    DrawingScreen(), // নতুন
+    StudyNotesScreen(), // ← নতুন (3rd position)
+    NotesScreen(),
+    DrawingScreen(),
   ];
 
   @override
@@ -34,8 +37,8 @@ class _MainScreenState extends State<MainScreen> {
         selectedItemColor: AppTheme.accent,
         unselectedItemColor: Colors.white38,
         type: BottomNavigationBarType.fixed,
-        selectedFontSize: 11,
-        unselectedFontSize: 10,
+        selectedFontSize: 10,
+        unselectedFontSize: 9,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.quiz_outlined),
@@ -48,6 +51,11 @@ class _MainScreenState extends State<MainScreen> {
             label: 'PDF',
           ),
           BottomNavigationBarItem(
+            icon: Icon(Icons.menu_book_outlined),
+            activeIcon: Icon(Icons.menu_book_rounded),
+            label: 'Study',
+          ),
+          BottomNavigationBarItem(
             icon: Icon(Icons.note_outlined),
             activeIcon: Icon(Icons.note_rounded),
             label: 'Notes',
@@ -55,7 +63,7 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.draw_outlined),
             activeIcon: Icon(Icons.draw_rounded),
-            label: 'Drawing',
+            label: 'Draw',
           ),
         ],
       ),

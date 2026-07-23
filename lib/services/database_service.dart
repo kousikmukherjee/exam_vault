@@ -1,6 +1,7 @@
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/question.dart';
 import '../models/question_set.dart';
+import 'dart:convert';
 
 class DatabaseService {
   static const String questionsBoxPrefix = 'questions_';
@@ -102,5 +103,88 @@ class DatabaseService {
       read += s.readCount;
     }
     return {'total': total, 'read': read, 'sets': sets.length};
+  }
+
+  // ── QUESTION CRUD ─────────────────────────
+
+  // Question delete
+  Future<void> deleteQuestion(String setId, String questionKey) async {
+    final box = await _openQuestionsBox(setId);
+    await box.delete(questionKey);
+
+    // Update total count
+    final qs = getSet(setId);
+    if (qs != null) {
+      qs.totalQuestions = box.length;
+      await qs.save();
+    }
+  }
+
+  // New question add
+  Future<void> addQuestion(String setId, Question question) async {
+    final box = await _openQuestionsBox(setId);
+    final key = box.length.toString();
+    await box.put(key, question);
+
+    // Update total count
+    final qs = getSet(setId);
+    if (qs != null) {
+      qs.totalQuestions = box.length;
+      await qs.save();
+    }
+  }
+
+  // Question update (edit)
+  Future<void> updateQuestion(
+    String setId,
+    String questionKey,
+    Question question,
+  ) async {
+    final box = await _openQuestionsBox(setId);
+    await box.put(questionKey, question);
+  }
+
+  // Get question keys (for delete/update)
+  Future<List<String>> getQuestionKeys(String setId) async {
+    final box = await _openQuestionsBox(setId);
+    return box.keys.map((k) => k.toString()).toList();
+  }
+
+  // ── EXPORT ────────────────────────────────
+
+  // Export set as JSON string
+  Future<String> exportSetAsJson(String setId) async {
+    final qs = getSet(setId);
+    if (qs == null) return '';
+
+    final box = await _openQuestionsBox(setId);
+    final questions = box.values.toList();
+
+    final questionList = questions
+        .map(
+          (q) => {
+            'id': q.id,
+            'question': q.question,
+            'options': q.options,
+            'correct_option': q.correctOption,
+            'answer': q.answer,
+            'explanation': q.explanation,
+            'difficulty': q.difficulty,
+            'subject': q.subject,
+            'tags': q.tags,
+          },
+        )
+        .toList();
+
+    final exportData = {
+      'set_name': qs.setName,
+      'subject': qs.subject,
+      'uploaded_on': qs.uploadedOn,
+      'questions': questionList,
+    };
+
+    // Pretty JSON
+    const encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert(exportData);
   }
 }

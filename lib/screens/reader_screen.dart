@@ -1,9 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/question.dart';
 import '../models/question_set.dart';
 import '../providers/app_provider.dart';
 import '../theme.dart';
+import 'question_editor_screen.dart';
 
 class ReaderScreen extends StatefulWidget {
   final QuestionSet questionSet;
@@ -16,20 +21,17 @@ class ReaderScreen extends StatefulWidget {
 class _ReaderScreenState extends State<ReaderScreen> {
   late PageController _pageController;
   List<Question> _questions = [];
+  List<String> _questionKeys = [];
   bool _isLoading = true;
   int _currentIndex = 0;
   int _readCount = 0;
 
-  // Per-question answer tracking
   String? _selectedOption;
   bool _isAnswered = false;
-
-  // Session score
   int _correctCount = 0;
   int _wrongCount = 0;
-
-  // Read Mode toggle
   bool _isReadMode = false;
+  bool _isExporting = false;
 
   @override
   void initState() {
@@ -48,10 +50,12 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final questions = await provider.db.getQuestionsForSet(
       widget.questionSet.setId,
     );
+    final keys = await provider.db.getQuestionKeys(widget.questionSet.setId);
     final savedIndex = provider.db.getProgress(widget.questionSet.setId);
 
     setState(() {
       _questions = questions;
+      _questionKeys = keys;
       _currentIndex = savedIndex.clamp(
         0,
         questions.isEmpty ? 0 : questions.length - 1,
@@ -117,11 +121,9 @@ class _ReaderScreenState extends State<ReaderScreen> {
   void _toggleReadMode() {
     setState(() {
       _isReadMode = !_isReadMode;
-      // Reset answer state when switching modes
       _selectedOption = null;
       _isAnswered = false;
     });
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -134,7 +136,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             const SizedBox(width: 8),
             Text(
               _isReadMode
-                  ? 'Read Mode ON — সব উত্তর ও ব্যাখ্যা দেখা যাচ্ছে'
+                  ? 'Read Mode ON — সব উত্তর দেখা যাচ্ছে'
                   : 'Test Mode ON — নিজে উত্তর দিন',
             ),
           ],
@@ -145,6 +147,133 @@ class _ReaderScreenState extends State<ReaderScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  // ── Delete current question ──────────────────────
+  void _deleteCurrentQuestion() {
+    if (_questions.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline, color: Colors.red),
+            SizedBox(width: 8),
+            Text('প্রশ্ন মুছবেন?'),
+          ],
+        ),
+        content: Text(
+          'Q.${_currentIndex + 1} মুছে দেওয়া হবে।\nএই কাজ পূর্বাবস্থায় ফেরানো যাবে না।',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('বাতিল'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final provider = context.read<AppProvider>();
+              final key = _questionKeys[_currentIndex];
+              await provider.deleteQuestion(widget.questionSet.setId, key);
+
+              // Reload
+              await _loadQuestions();
+              setState(() {
+                if (_currentIndex >= _questions.length && _currentIndex > 0) {
+                  _currentIndex = _questions.length - 1;
+                }
+                _selectedOption = null;
+                _isAnswered = false;
+              });
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('✅ প্রশ্ন মুছে গেছে'),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('মুছুন'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Add new question ─────────────────────────────
+  void _addNewQuestion() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuestionEditorScreen(
+          setId: widget.questionSet.setId,
+          setName: widget.questionSet.setName,
+          subject: widget.questionSet.subject,
+        ),
+      ),
+    ).then((result) {
+      if (result == true) _loadQuestions();
+    });
+  }
+
+  // ── Edit current question ────────────────────────
+  void _editCurrentQuestion() {
+    if (_questions.isEmpty) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => QuestionEditorScreen(
+          setId: widget.questionSet.setId,
+          setName: widget.questionSet.setName,
+          subject: widget.questionSet.subject,
+          question: _questions[_currentIndex],
+          questionKey: _questionKeys[_currentIndex],
+        ),
+      ),
+    ).then((result) {
+      if (result == true) _loadQuestions();
+    });
+  }
+
+  // ── Export set as JSON ───────────────────────────
+  Future<void> _exportSet() async {
+    setState(() => _isExporting = true);
+    try {
+      final provider = context.read<AppProvider>();
+      final jsonString = await provider.exportSet(widget.questionSet.setId);
+
+      // Save to temp file
+      final dir = await getTemporaryDirectory();
+      final fileName =
+          '${widget.questionSet.setName.replaceAll(' ', '_')}_export.json';
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsString(jsonString, encoding: utf8);
+
+      // Share
+      await Share.shareXFiles([
+        XFile(file.path, mimeType: 'application/json'),
+      ], subject: '${widget.questionSet.setName} — Exported Questions');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Export failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+    setState(() => _isExporting = false);
   }
 
   void _jumpToQuestion() {
@@ -276,7 +405,24 @@ class _ReaderScreenState extends State<ReaderScreen> {
     if (_questions.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.questionSet.setName)),
-        body: const Center(child: Text('No questions found')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('No questions found'),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _addNewQuestion,
+                icon: const Icon(Icons.add),
+                label: const Text('প্রশ্ন যোগ করুন'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -306,7 +452,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ],
           ),
           actions: [
-            // ── Read Mode Toggle ──────────────────────
+            // ── Read Mode Toggle ──────────────────
             GestureDetector(
               onTap: _toggleReadMode,
               child: AnimatedContainer(
@@ -323,7 +469,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: _isReadMode ? Colors.amber.shade300 : Colors.white30,
-                    width: 1,
                   ),
                 ),
                 child: Row(
@@ -351,47 +496,73 @@ class _ReaderScreenState extends State<ReaderScreen> {
             ),
             const SizedBox(width: 4),
 
-            // ── Score chip ────────────────────────────
-            if (!_isReadMode)
-              GestureDetector(
-                onTap: _showScoreDialog,
-                child: Container(
-                  margin: const EdgeInsets.only(right: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.emoji_events_rounded,
-                        color: AppTheme.accentLight,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        '$_correctCount/${_correctCount + _wrongCount}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+            // ── More options menu ─────────────────
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.white),
+              color: const Color(0xFF16213E),
+              onSelected: (val) {
+                switch (val) {
+                  case 'add':
+                    _addNewQuestion();
+                    break;
+                  case 'edit':
+                    _editCurrentQuestion();
+                    break;
+                  case 'delete':
+                    _deleteCurrentQuestion();
+                    break;
+                  case 'export':
+                    _exportSet();
+                    break;
+                  case 'jump':
+                    _jumpToQuestion();
+                    break;
+                  case 'score':
+                    _showScoreDialog();
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                _menuItem(
+                  'add',
+                  Icons.add_circle_outline,
+                  'নতুন প্রশ্ন যোগ',
+                  Colors.green,
                 ),
-              ),
-
-            // ── Jump to question ──────────────────────
-            IconButton(
-              onPressed: _jumpToQuestion,
-              icon: const Icon(Icons.search_rounded, color: Colors.white),
-              tooltip: 'Jump to question',
+                _menuItem(
+                  'edit',
+                  Icons.edit_outlined,
+                  'এই প্রশ্ন সম্পাদনা',
+                  Colors.blue,
+                ),
+                _menuItem(
+                  'delete',
+                  Icons.delete_outline,
+                  'এই প্রশ্ন মুছুন',
+                  Colors.red,
+                ),
+                const PopupMenuDivider(),
+                _menuItem(
+                  'export',
+                  Icons.upload_file_rounded,
+                  'Set Export করুন',
+                  Colors.orange,
+                ),
+                const PopupMenuDivider(),
+                _menuItem(
+                  'jump',
+                  Icons.search_rounded,
+                  'প্রশ্নে যান',
+                  Colors.purple,
+                ),
+                if (!_isReadMode)
+                  _menuItem(
+                    'score',
+                    Icons.emoji_events_rounded,
+                    'Score দেখুন',
+                    Colors.amber,
+                  ),
+              ],
             ),
           ],
           bottom: PreferredSize(
@@ -409,7 +580,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // ── Mode hint bar ─────────────────────────
+              // Mode hint bar
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 color: _isReadMode
@@ -446,7 +617,16 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
-              // ── Question PageView ─────────────────────
+              // Export loading
+              if (_isExporting)
+                LinearProgressIndicator(
+                  backgroundColor: Colors.orange.shade100,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    Colors.orange,
+                  ),
+                ),
+
+              // Question PageView
               Expanded(
                 child: PageView.builder(
                   controller: _pageController,
@@ -474,7 +654,7 @@ class _ReaderScreenState extends State<ReaderScreen> {
                 ),
               ),
 
-              // ── Bottom navigation ─────────────────────
+              // Bottom nav
               _buildBottomNav(color),
             ],
           ),
@@ -483,9 +663,29 @@ class _ReaderScreenState extends State<ReaderScreen> {
     );
   }
 
+  PopupMenuItem<String> _menuItem(
+    String value,
+    IconData icon,
+    String label,
+    Color color,
+  ) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBottomNav(Color color) {
     final bool canGoNext = _isReadMode || _isAnswered;
-
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       decoration: const BoxDecoration(
@@ -500,7 +700,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
       ),
       child: Row(
         children: [
-          // Prev button
           _navBtn(
             icon: Icons.arrow_back_rounded,
             enabled: _currentIndex > 0,
@@ -508,8 +707,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
             onTap: _goPrev,
           ),
           const SizedBox(width: 8),
-
-          // Center button
           Expanded(
             flex: 2,
             child: canGoNext
@@ -554,8 +751,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
                   ),
           ),
           const SizedBox(width: 8),
-
-          // Next button
           _navBtn(
             icon: Icons.arrow_forward_rounded,
             enabled: _currentIndex < _questions.length - 1,
@@ -594,7 +789,6 @@ class _ReaderScreenState extends State<ReaderScreen> {
     final percent = total > 0
         ? ((_correctCount / total) * 100).toStringAsFixed(0)
         : '0';
-
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -678,7 +872,6 @@ class _QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Read mode-এ সব দেখাবে, Test mode-এ answer দিলে দেখাবে
     final bool showAnswer = isAnswered || isReadMode;
     final bool isCorrectAnswer =
         isAnswered && selectedOption == question.correctOption;
@@ -690,7 +883,6 @@ class _QuestionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Question card ───────────────────────────
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -706,7 +898,6 @@ class _QuestionCard extends StatelessWidget {
                         subjectColor,
                       ),
                       const Spacer(),
-                      // Read mode badge
                       if (isReadMode)
                         Container(
                           padding: const EdgeInsets.symmetric(
@@ -750,7 +941,6 @@ class _QuestionCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
 
-          // ── Options ─────────────────────────────────
           ...question.options.entries.map(
             (e) => _OptionTile(
               optionKey: e.key,
@@ -765,9 +955,7 @@ class _QuestionCard extends StatelessWidget {
 
           const SizedBox(height: 14),
 
-          // ── Result + Explanation ─────────────────────
           if (showAnswer) ...[
-            // Result banner
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               curve: Curves.easeOut,
@@ -858,8 +1046,6 @@ class _QuestionCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-
-            // Explanation card
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -986,8 +1172,6 @@ class _OptionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Read mode-এ correct answer সবুজ, বাকি normal
-    // Test mode-এ answer দিলে correct সবুজ, wrong লাল
     final bool showResult = isAnswered || isReadMode;
 
     Color bgColor = Colors.white;
@@ -999,7 +1183,6 @@ class _OptionTile extends StatelessWidget {
 
     if (showResult) {
       if (isCorrect) {
-        // Correct answer — সবুজ
         bgColor = AppTheme.successLight.withOpacity(0.08);
         borderColor = AppTheme.successLight.withOpacity(0.5);
         textColor = AppTheme.success;
@@ -1011,7 +1194,6 @@ class _OptionTile extends StatelessWidget {
           size: 22,
         );
       } else if (!isReadMode && isSelected) {
-        // Test mode-এ ভুল উত্তর — লাল
         bgColor = AppTheme.error.withOpacity(0.07);
         borderColor = AppTheme.error.withOpacity(0.4);
         textColor = AppTheme.error;
@@ -1023,7 +1205,6 @@ class _OptionTile extends StatelessWidget {
           size: 22,
         );
       } else {
-        // Read mode-এ ভুল option — dim
         bgColor = Colors.grey.shade50;
         borderColor = Colors.grey.shade200;
         textColor = Colors.grey.shade400;
@@ -1056,7 +1237,6 @@ class _OptionTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          // Read mode বা answered হলে tap disable
           onTap: showResult ? null : onTap,
           borderRadius: BorderRadius.circular(14),
           splashColor: AppTheme.primary.withOpacity(0.08),

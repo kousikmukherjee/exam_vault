@@ -1,28 +1,22 @@
-import 'package:exam_vault/models/pdf_document.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:hive/hive.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'services/database_service.dart';
 import 'providers/app_provider.dart';
-import 'screens/home_screen.dart';
-// এই import যোগ করুন
+import 'models/pdf_document.dart';
+import 'models/note_model.dart';
 import 'screens/main_screen.dart';
 import 'theme.dart';
-
-// ↓ নতুন import যোগ করুন
-import 'models/note_model.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Portrait only
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Set status bar style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: AppTheme.primaryDark,
@@ -30,16 +24,19 @@ void main() async {
     ),
   );
 
-  // Initialize Hive local database
+  // Initialize Hive
   await DatabaseService.init();
 
-  // ↓ এই ২ লাইন যোগ করুন DatabaseService.init() এর পরে
+  // PDF Library
   Hive.registerAdapter(PdfDocumentAdapter());
   await Hive.openBox<PdfDocument>('pdf_library');
 
-  // ↓ নতুন যোগ করুন:
+  // Notes
   Hive.registerAdapter(NoteModelAdapter());
   await Hive.openBox<NoteModel>('notes_box');
+
+  // ← Study Notes marked facts (নতুন)
+  await Hive.openBox<bool>('marked_facts');
 
   runApp(const ExamVaultApp());
 }
